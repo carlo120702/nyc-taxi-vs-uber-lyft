@@ -1,6 +1,6 @@
 # Yellow Taxi vs. Uber/Lyft in New York City 2025: Big Data Group Project
 
-Analysis of the NYC Taxi & Limousine Commission (TLC) trip records for 2025, comparing **Yellow Taxi** with the app-based services **Uber and Lyft** (High Volume For-Hire Vehicles), following the CRISP-DM methodology.
+Analysis of the NYC Taxi & Limousine Commission (TLC) trip records for 2025, comparing **Yellow Taxi** with the app-based services **Uber and Lyft** (High Volume For-Hire Vehicles), following the CRISP-DM methodology (Cross-Industry Standard Process for Data Mining).
 
 **Business question.** Where, when and at what price can yellow taxis still compete with Uber and Lyft, and which trips are likely to be served by a taxi?
 
