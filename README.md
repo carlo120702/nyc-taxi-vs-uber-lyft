@@ -13,6 +13,7 @@ Analysis of the NYC Taxi & Limousine Commission (TLC) trip records for 2025, com
 | e. Dask with two worker / memory configurations | `src/dask_benchmark.py`, `config.py` |
 | f. Database in AWS (results only) | `src/db.py` (AWS RDS PostgreSQL, SQLAlchemy ORM) |
 | g. Management dashboard | `grafana/` |
+| h. Conclusions, i to k. Report | `report/NYC_Taxi_vs_Uber_Lyft_Report.docx` |
 | l. Code repository | this repository |
 
 ## Data
@@ -62,6 +63,8 @@ All tables store **sums** (not only averages), so Grafana can correctly re-aggre
 | A_2workers_6GB | 2 | 4 | 6 GB | 8 threads, 12 GB |
 | B_4workers_3GB | 4 | 2 | 3 GB | 8 threads, 12 GB |
 
+Benchmark result over 287.1 M trips (median of 2 runs): A took 286 s, B 441 s. Configuration A is therefore the default.
+
 ## Setup (Windows, Anaconda Prompt)
 
 Run each command separately, one after the other.
@@ -102,9 +105,9 @@ Create a PostgreSQL instance as in Assignment 1 (Free tier template, `db.t3.micr
    ```
    python flows/etl_flow.py
    ```
-   If a worker runs out of memory during cleaning, use the configuration with more memory per worker
+   The default is configuration A (2 workers with 6 GB each). To run with configuration B instead
    ```
-   python flows/etl_flow.py --dask-config A_2workers_6GB
+   python flows/etl_flow.py --dask-config B_4workers_3GB
    ```
 4. Run the Dask benchmark (uses the cleaned data from step 3)
    ```

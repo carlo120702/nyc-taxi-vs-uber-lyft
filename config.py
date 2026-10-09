@@ -72,7 +72,7 @@ DASK_CONFIGS = {
     "A_2workers_6GB": {"n_workers": 2, "threads_per_worker": 4, "memory_limit": "6GB"},
     "B_4workers_3GB": {"n_workers": 4, "threads_per_worker": 2, "memory_limit": "3GB"},
 }
-DEFAULT_DASK_CONFIG = os.environ.get("DASK_CONFIG", "B_4workers_3GB")
+DEFAULT_DASK_CONFIG = os.environ.get("DASK_CONFIG", "A_2workers_6GB")   # fastest in the benchmark
 
 # ---------------------------------------------------------------- database (AWS RDS PostgreSQL)
 DB_HOST = os.environ.get("DB_HOST", "localhost")
