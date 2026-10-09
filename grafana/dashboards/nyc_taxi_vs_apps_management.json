@@ -60,7 +60,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT sum(trips) AS trips FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service)"
+          "rawSql": "SELECT sum(trips) AS trips FROM service_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo() AND service IN ($service)"
         }
       ],
       "fieldConfig": {
@@ -108,7 +108,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(trips), 0) AS share FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1))"
+          "rawSql": "SELECT sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(trips), 0) AS share FROM service_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo()"
         }
       ],
       "fieldConfig": {
@@ -156,7 +156,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT sum(revenue) AS revenue FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service)"
+          "rawSql": "SELECT sum(revenue) AS revenue FROM service_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo() AND service IN ($service)"
         }
       ],
       "fieldConfig": {
@@ -204,7 +204,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT sum(revenue) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(revenue), 0) AS share FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1))"
+          "rawSql": "SELECT sum(revenue) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(revenue), 0) AS share FROM service_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo()"
         }
       ],
       "fieldConfig": {
@@ -252,7 +252,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "time_series",
-          "rawSql": "SELECT make_date(year, month, 1) AS time, sum(trips) FILTER (WHERE service = 'Yellow Taxi') AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber') AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft') AS \"Lyft\" FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service) GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT make_date(year, month, 1) AS time, sum(trips) FILTER (WHERE service = 'Yellow Taxi') AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber') AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft') AS \"Lyft\" FROM service_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo() AND service IN ($service) GROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -342,7 +342,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "time_series",
-          "rawSql": "SELECT make_date(year, month, 1) AS time, sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(trips), 0) AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber')::float / nullif(sum(trips), 0) AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft')::float / nullif(sum(trips), 0) AS \"Lyft\" FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) GROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT make_date(year, month, 1) AS time, sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(trips), 0) AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber')::float / nullif(sum(trips), 0) AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft')::float / nullif(sum(trips), 0) AS \"Lyft\" FROM service_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo() GROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -432,7 +432,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT borough, sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(trips), 0) AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber')::float / nullif(sum(trips), 0) AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft')::float / nullif(sum(trips), 0) AS \"Lyft\" FROM zone_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND borough NOT IN ('Unknown', 'N/A') GROUP BY borough ORDER BY 2 DESC"
+          "rawSql": "SELECT borough, sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(trips), 0) AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber')::float / nullif(sum(trips), 0) AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft')::float / nullif(sum(trips), 0) AS \"Lyft\" FROM zone_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo() AND borough NOT IN ('Unknown', 'N/A') GROUP BY borough ORDER BY 2 DESC"
         }
       ],
       "fieldConfig": {
@@ -528,7 +528,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT lpad(hour::text, 2, '0') AS hour, sum(trips) FILTER (WHERE service = 'Yellow Taxi') AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber') AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft') AS \"Lyft\" FROM hour_weekday_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service) GROUP BY hour ORDER BY hour"
+          "rawSql": "SELECT lpad(hour::text, 2, '0') AS hour, sum(trips) FILTER (WHERE service = 'Yellow Taxi') AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber') AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft') AS \"Lyft\" FROM hour_weekday_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo() AND service IN ($service) GROUP BY hour ORDER BY hour"
         }
       ],
       "fieldConfig": {
@@ -622,7 +622,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT service, sum(fare_sum) / nullif(sum(miles_sum), 0) AS fare_per_mile FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service) GROUP BY service ORDER BY 2 DESC"
+          "rawSql": "SELECT service, sum(fare_sum) / nullif(sum(miles_sum), 0) AS fare_per_mile FROM service_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo() AND service IN ($service) GROUP BY service ORDER BY 2 DESC"
         }
       ],
       "fieldConfig": {
@@ -667,7 +667,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT service, sum(card_tip_sum) / nullif(sum(card_fare_sum), 0) AS tip_rate FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service) GROUP BY service ORDER BY 2 DESC"
+          "rawSql": "SELECT service, sum(card_tip_sum) / nullif(sum(card_fare_sum), 0) AS tip_rate FROM service_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo() AND service IN ($service) GROUP BY service ORDER BY 2 DESC"
         }
       ],
       "fieldConfig": {
@@ -712,7 +712,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT service, sum(miles_sum) / sum(trips) AS avg_miles, sum(minutes_sum) / sum(trips) AS avg_minutes, sum(miles_sum) / nullif(sum(minutes_sum) / 60, 0) AS avg_speed_mph, sum(airport_trips)::float / sum(trips) AS airport_share, sum(cbd_trips)::float / sum(trips) AS cbd_toll_share FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service) GROUP BY service ORDER BY sum(trips) DESC"
+          "rawSql": "SELECT service, sum(miles_sum) / sum(trips) AS avg_miles, sum(minutes_sum) / sum(trips) AS avg_minutes, sum(miles_sum) / nullif(sum(minutes_sum) / 60, 0) AS avg_speed_mph, sum(airport_trips)::float / sum(trips) AS airport_share, sum(cbd_trips)::float / sum(trips) AS cbd_toll_share FROM service_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo() AND service IN ($service) GROUP BY service ORDER BY sum(trips) DESC"
         }
       ],
       "fieldConfig": {
@@ -775,7 +775,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT zone, borough, sum(trips) AS trips, sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / sum(trips) AS taxi_share, sum(fare_sum) FILTER (WHERE service = 'Yellow Taxi') / nullif(sum(trips) FILTER (WHERE service = 'Yellow Taxi'), 0) AS taxi_avg_fare, sum(fare_sum) FILTER (WHERE service <> 'Yellow Taxi') / nullif(sum(trips) FILTER (WHERE service <> 'Yellow Taxi'), 0) AS app_avg_fare FROM zone_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) GROUP BY zone, borough HAVING sum(trips) >= 50000 ORDER BY taxi_share DESC LIMIT 15"
+          "rawSql": "SELECT zone, borough, sum(trips) AS trips, sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / sum(trips) AS taxi_share, sum(fare_sum) FILTER (WHERE service = 'Yellow Taxi') / nullif(sum(trips) FILTER (WHERE service = 'Yellow Taxi'), 0) AS taxi_avg_fare, sum(fare_sum) FILTER (WHERE service <> 'Yellow Taxi') / nullif(sum(trips) FILTER (WHERE service <> 'Yellow Taxi'), 0) AS app_avg_fare FROM zone_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo() GROUP BY zone, borough HAVING sum(trips) >= 50000 ORDER BY taxi_share DESC LIMIT 15"
         }
       ],
       "fieldConfig": {
@@ -854,7 +854,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT service, sum(wait_min_sum) / nullif(sum(wait_trips), 0) AS avg_wait_min, sum(driver_pay_sum) / nullif(sum(fare_sum), 0) AS driver_pay_share_of_fare FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND source = 'fhvhv' GROUP BY service"
+          "rawSql": "SELECT service, sum(wait_min_sum) / nullif(sum(wait_trips), 0) AS avg_wait_min, sum(driver_pay_sum) / nullif(sum(fare_sum), 0) AS driver_pay_share_of_fare FROM service_month_kpi WHERE make_date(year, month, 1) BETWEEN $__timeFrom() AND $__timeTo() AND source = 'fhvhv' GROUP BY service"
         }
       ],
       "fieldConfig": {
@@ -955,7 +955,7 @@
           "rawQuery": true,
           "editorMode": "code",
           "format": "time_series",
-          "rawSql": "SELECT date::timestamp AS time, sum(trips) FILTER (WHERE service = 'Yellow Taxi') AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber') AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft') AS \"Lyft\", max(precip_mm) AS \"Precipitation (mm)\" FROM daily_kpi WHERE $__timeFilter(date::timestamp) AND service IN ($service) GROUP BY date ORDER BY date"
+          "rawSql": "SELECT date::timestamp AS time, sum(trips) FILTER (WHERE service = 'Yellow Taxi') AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber') AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft') AS \"Lyft\", max(precip_mm) AS \"Precipitation (mm)\" FROM daily_kpi WHERE date BETWEEN $__timeFrom() AND $__timeTo() AND service IN ($service) GROUP BY date ORDER BY date"
         }
       ],
       "fieldConfig": {

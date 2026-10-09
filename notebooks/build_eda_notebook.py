@@ -48,7 +48,7 @@ plt.rcParams["figure.figsize"] = (10, 4.5)
 COLORS = {"Yellow Taxi": "#F2B701", "Uber": "#222222", "Lyft": "#E0007A"}
 SERVICES = ["Yellow Taxi", "Uber", "Lyft"]
 
-cluster = LocalCluster(**config.DASK_CONFIGS["B_4workers_3GB"])
+cluster = LocalCluster(**config.DASK_CONFIGS["A_2workers_6GB"])
 client = Client(cluster)
 client
 """)

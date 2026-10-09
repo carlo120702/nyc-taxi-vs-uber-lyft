@@ -7,7 +7,9 @@ from pathlib import Path
 
 DS = {"type": "grafana-postgresql-datasource", "uid": "nyctaxi-rds"}
 T = "make_date(year, month, 1)"
-TF = f"$__timeFilter({T})"
+# Grafana macros split their argument at commas, so $__timeFilter(make_date(year, month, 1))
+# would break. The explicit BETWEEN with $__timeFrom() / $__timeTo() avoids that.
+TF = f"{T} BETWEEN $__timeFrom() AND $__timeTo()"
 SVC = "service IN ($service)"
 COLORS = {"Yellow Taxi": "#F2B701", "Uber": "#555555", "Lyft": "#E0007A"}
 
@@ -161,7 +163,7 @@ panels = [
     # ---------------------------------------------------------------- context: weather
     panel(15, "Daily trips and precipitation (context data)", "timeseries",
           f"SELECT date::timestamp AS time, {by_service('sum(trips) {f}')}, max(precip_mm) AS \"Precipitation (mm)\" "
-          f"FROM daily_kpi WHERE $__timeFilter(date::timestamp) AND {SVC} GROUP BY date ORDER BY date",
+          f"FROM daily_kpi WHERE date BETWEEN $__timeFrom() AND $__timeTo() AND {SVC} GROUP BY date ORDER BY date",
           0, 39, 24, 9, fmt="time_series", unit="short", custom={"drawStyle": "line", "lineWidth": 1},
           overrides=color_overrides() + [{"matcher": {"id": "byName", "options": "Precipitation (mm)"}, "properties": [
               {"id": "custom.axisPlacement", "value": "right"}, {"id": "unit", "value": "lengthmm"},
