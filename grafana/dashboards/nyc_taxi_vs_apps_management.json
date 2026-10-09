@@ -1,0 +1,1051 @@
+{
+  "uid": "nyc-taxi-vs-apps",
+  "title": "NYC Yellow Taxi vs. Uber/Lyft - Management Overview",
+  "tags": [
+    "big-data",
+    "nyc-tlc"
+  ],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {
+    "from": "2025-01-01T00:00:00Z",
+    "to": "2025-12-31T23:59:59Z"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "nyctaxi-rds"
+        },
+        "query": "SELECT DISTINCT service FROM service_month_kpi ORDER BY 1",
+        "definition": "SELECT DISTINCT service FROM service_month_kpi ORDER BY 1",
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "refresh": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Trips in period",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT sum(trips) AS trips FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Yellow Taxi market share (trips)",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "Share of all Yellow Taxi + Uber + Lyft trips that were served by a yellow taxi.",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(trips), 0) AS share FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Passenger spending (USD)",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "Everything passengers paid, including tips, taxes, surcharges and the congestion toll.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT sum(revenue) AS revenue FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Yellow Taxi share of passenger spending",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT sum(revenue) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(revenue), 0) AS share FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Trips per month by service",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT make_date(year, month, 1) AS time, sum(trips) FILTER (WHERE service = 'Yellow Taxi') AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber') AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft') AS \"Lyft\" FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Yellow Taxi"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2B701"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uber"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#555555"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Lyft"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E0007A"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "title": "Market share per month (trips)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT make_date(year, month, 1) AS time, sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(trips), 0) AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber')::float / nullif(sum(trips), 0) AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft')::float / nullif(sum(trips), 0) AS \"Lyft\" FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "pointSize": 6,
+            "showPoints": "always"
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Yellow Taxi"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2B701"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uber"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#555555"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Lyft"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E0007A"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {}
+    },
+    {
+      "id": 7,
+      "title": "Market share by pickup borough",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "Yellow taxis may only pick up street hails; they dominate where hails are frequent (Manhattan, airports).",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT borough, sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / nullif(sum(trips), 0) AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber')::float / nullif(sum(trips), 0) AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft')::float / nullif(sum(trips), 0) AS \"Lyft\" FROM zone_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND borough NOT IN ('Unknown', 'N/A') GROUP BY borough ORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "fillOpacity": 85
+          },
+          "max": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Yellow Taxi"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2B701"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uber"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#555555"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Lyft"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E0007A"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "horizontal",
+        "stacking": "normal",
+        "showValue": "never",
+        "xField": "borough",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Trips by pickup hour",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT lpad(hour::text, 2, '0') AS hour, sum(trips) FILTER (WHERE service = 'Yellow Taxi') AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber') AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft') AS \"Lyft\" FROM hour_weekday_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service) GROUP BY hour ORDER BY hour"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 85
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Yellow Taxi"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2B701"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uber"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#555555"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Lyft"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E0007A"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "hour",
+        "stacking": "normal",
+        "showValue": "never",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Base fare per mile (USD)",
+      "type": "bargauge",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "Fare before tips, taxes and surcharges divided by miles travelled.",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT service, sum(fare_sum) / nullif(sum(miles_sum), 0) AS fare_per_mile FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service) GROUP BY service ORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^fare_per_mile$/"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Tip rate on card payments",
+      "type": "bargauge",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "Taxi cash tips are not recorded, so only card payments are compared.",
+      "gridPos": {
+        "x": 6,
+        "y": 21,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT service, sum(card_tip_sum) / nullif(sum(card_fare_sum), 0) AS tip_rate FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service) GROUP BY service ORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": "/^tip_rate$/"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Average trip: distance and duration",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT service, sum(miles_sum) / sum(trips) AS avg_miles, sum(minutes_sum) / sum(trips) AS avg_minutes, sum(miles_sum) / nullif(sum(minutes_sum) / 60, 0) AS avg_speed_mph, sum(airport_trips)::float / sum(trips) AS airport_share, sum(cbd_trips)::float / sum(trips) AS cbd_toll_share FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND service IN ($service) GROUP BY service ORDER BY sum(trips) DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "avg_.*"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*_share"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {}
+    },
+    {
+      "id": 12,
+      "title": "Pickup zones where Yellow Taxi is strongest (min. 50,000 trips)",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 14,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT zone, borough, sum(trips) AS trips, sum(trips) FILTER (WHERE service = 'Yellow Taxi')::float / sum(trips) AS taxi_share, sum(fare_sum) FILTER (WHERE service = 'Yellow Taxi') / nullif(sum(trips) FILTER (WHERE service = 'Yellow Taxi'), 0) AS taxi_avg_fare, sum(fare_sum) FILTER (WHERE service <> 'Yellow Taxi') / nullif(sum(trips) FILTER (WHERE service <> 'Yellow Taxi'), 0) AS app_avg_fare FROM zone_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) GROUP BY zone, borough HAVING sum(trips) >= 50000 ORDER BY taxi_share DESC LIMIT 15"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "taxi_share"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-YlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*_avg_fare"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "options": {}
+    },
+    {
+      "id": 13,
+      "title": "Uber/Lyft: waiting time and driver share",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "Not available for yellow taxis (no request time and no driver pay in the taxi meter data).",
+      "gridPos": {
+        "x": 14,
+        "y": 29,
+        "w": 10,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT service, sum(wait_min_sum) / nullif(sum(wait_trips), 0) AS avg_wait_min, sum(driver_pay_sum) / nullif(sum(fare_sum), 0) AS driver_pay_share_of_fare FROM service_month_kpi WHERE $__timeFilter(make_date(year, month, 1)) AND source = 'fhvhv' GROUP BY service"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_wait_min"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "m"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "driver_pay_share_of_fare"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {}
+    },
+    {
+      "id": 14,
+      "title": "ETL runs and data quality (Prefect)",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 14,
+        "y": 34,
+        "w": 10,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT r.id AS run, r.started_at, r.status, r.dask_config, r.n_files, r.n_trips, round(r.duration_s::numeric, 1) AS seconds, count(q.id) FILTER (WHERE q.passed) AS checks_passed, count(q.id) FILTER (WHERE NOT q.passed) AS checks_failed FROM etl_run_log r LEFT JOIN quality_check q ON q.run_id = r.id GROUP BY r.id ORDER BY r.id DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 15,
+      "title": "Daily trips and precipitation (context data)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "nyctaxi-rds"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "nyctaxi-rds"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT date::timestamp AS time, sum(trips) FILTER (WHERE service = 'Yellow Taxi') AS \"Yellow Taxi\", sum(trips) FILTER (WHERE service = 'Uber') AS \"Uber\", sum(trips) FILTER (WHERE service = 'Lyft') AS \"Lyft\", max(precip_mm) AS \"Precipitation (mm)\" FROM daily_kpi WHERE $__timeFilter(date::timestamp) AND service IN ($service) GROUP BY date ORDER BY date"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Yellow Taxi"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2B701"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uber"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#555555"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Lyft"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E0007A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Precipitation (mm)"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "lengthmm"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 40
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {}
+    }
+  ]
+}

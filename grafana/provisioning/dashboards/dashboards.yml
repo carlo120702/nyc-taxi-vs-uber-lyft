@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: nyc-taxi
+    folder: Big Data Project
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

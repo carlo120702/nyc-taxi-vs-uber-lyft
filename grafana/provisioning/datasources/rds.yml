@@ -1,0 +1,15 @@
+# Grafana reads the connection data from the project .env file (see docker-compose.yml)
+apiVersion: 1
+datasources:
+  - name: AWS RDS - nyctaxi
+    uid: nyctaxi-rds
+    type: grafana-postgresql-datasource
+    url: ${DB_HOST}:${DB_PORT}
+    user: ${DB_USER}
+    isDefault: true
+    jsonData:
+      database: ${DB_NAME}
+      sslmode: require
+      postgresVersion: 1600
+    secureJsonData:
+      password: ${DB_PASSWORD}

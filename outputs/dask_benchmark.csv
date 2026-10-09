@@ -1,0 +1,9 @@
+config,n_workers,threads_per_worker,memory_per_worker,repeat,step,seconds,n_files,n_partitions
+A_2workers_6GB,2,4,6GB,1,eda,36.15,24,305
+A_2workers_6GB,2,4,6GB,1,aggregates,227.31,24,305
+A_2workers_6GB,2,4,6GB,2,eda,81.7,24,305
+A_2workers_6GB,2,4,6GB,2,aggregates,226.12,24,305
+B_4workers_3GB,4,2,3GB,1,eda,103.22,24,305
+B_4workers_3GB,4,2,3GB,1,aggregates,364.85,24,305
+B_4workers_3GB,4,2,3GB,2,eda,109.37,24,305
+B_4workers_3GB,4,2,3GB,2,aggregates,304.48,24,305

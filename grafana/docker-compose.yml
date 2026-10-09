@@ -1,0 +1,21 @@
+# Start Grafana locally with the AWS RDS datasource and the dashboard already configured.
+#   docker compose --env-file ../.env up -d
+# Then open http://localhost:3000  (user admin / password admin)
+services:
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana-nyctaxi
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ./provisioning:/etc/grafana/provisioning
+      - ./dashboards:/var/lib/grafana/dashboards
+      - grafana-data:/var/lib/grafana
+volumes:
+  grafana-data:

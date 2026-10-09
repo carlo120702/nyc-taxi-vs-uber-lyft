@@ -1,0 +1,7 @@
+.env
+data/
+outputs/*_last_run.csv
+__pycache__/
+.ipynb_checkpoints/
+*.part
+*.tmp
