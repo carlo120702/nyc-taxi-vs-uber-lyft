@@ -1,6 +1,6 @@
 # Yellow Taxi vs. Uber/Lyft in New York City 2025: Big Data Group Project
 
-Analysis of the NYC Taxi & Limousine Commission (TLC) trip records for 2025, comparing **Yellow Taxi** with the app-based services **Uber and Lyft** (High Volume For-Hire Vehicles), following the CRISP-DM methodology.
+Analysis of the NYC Taxi & Limousine Commission (TLC) trip records for 2025, comparing **Yellow Taxi** with the app-based services **Uber and Lyft** (High Volume For-Hire Vehicles), following the CRISP-DM methodology (Cross-Industry Standard Process for Data Mining).
 
 **Business question.** Where, when and at what price can yellow taxis still compete with Uber and Lyft, and which trips are likely to be served by a taxi?
 
@@ -15,6 +15,30 @@ Analysis of the NYC Taxi & Limousine Commission (TLC) trip records for 2025, com
 | g. Management dashboard | `grafana/` |
 | h. Conclusions, i to k. Report | `report/NYC_Taxi_vs_Uber_Lyft_Report.docx` |
 | l. Code repository | this repository |
+
+## CRISP-DM mapping
+
+| Phase | Where in this repository |
+|---|---|
+| 1. Business understanding | `notebooks/01_eda.ipynb` (introduction): business question, unit of analysis, target `is_taxi` |
+| 2. Data understanding | `notebooks/01_eda.ipynb` (sections 1 to 9): volume, schemas, data quality, distributions |
+| 3. Data preparation | `src/pipeline.py` (`harmonise`, `clean_batch`), `src/context.py` (zones, weather) |
+| 4. Modeling | `notebooks/01_eda.ipynb` (section 12): baseline HistGradientBoosting, ROC-AUC 0.867 |
+| 5. Evaluation | ROC-AUC and PR-AUC instead of accuracy because Yellow Taxi is only 15.3 % of trips |
+| 6. Deployment | `flows/etl_flow.py` (Prefect), `src/db.py` (AWS RDS), `grafana/` (dashboard) |
+
+## Tools used
+
+| Tool | Role in the project |
+|---|---|
+| VS Code | Editor and notebook runner |
+| Parquet / PyArrow | Columnar file format for raw and cleaned trips, read in batches of 1 million rows |
+| Dask | Parallel processing of 287 M trips (two cluster configurations benchmarked) |
+| Prefect | Recurring, incremental ETL flow with retries and run log |
+| AWS RDS (PostgreSQL) | Stores only the aggregated KPI tables, quality checks and run log |
+| SQLAlchemy ORM | Python classes for the tables, idempotent load |
+| Grafana (Docker) | Management dashboard on top of the RDS tables |
+| scikit-learn | Baseline model that predicts `is_taxi` |
 
 ## Data
 
