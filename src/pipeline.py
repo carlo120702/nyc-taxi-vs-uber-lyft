@@ -61,6 +61,71 @@ CLEAN_SCHEMA = pa.schema([
 RULES = ["missing_key", "out_of_period", "invalid_duration", "invalid_distance",
          "invalid_fare", "implausible_speed"]
 
+# ---------------------------------------------------------------------
+# Distribution check (before vs. after cleaning)
+# Per source-month we store, in the *_quality.json next to the cleaned file:
+#   zone_before / zone_after   trip counts per (service, pickup zone)
+#   hist_before / hist_after   histogram counts per (service, column) on DIST_BINS
+#   sums_before / sums_after   [count, sum] per (service, column) for exact means
+# The raw rows themselves are never kept, so the distributions can still be
+# compared over all ~290 M trips without storing a second copy of the data.
+# Open outer bins (-inf / +inf) collect the invalid values that cleaning removes.
+DIST_COLUMNS = ["fare", "trip_miles", "duration_min"]
+DIST_BINS = {
+    "fare": [-np.inf, 0, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 200, 500, np.inf],
+    "trip_miles": [-np.inf, 0, 0.5, 1, 2, 3, 5, 7.5, 10, 15, 20, 30, 50, 100, np.inf],
+    "duration_min": [-np.inf, 0, 1, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, np.inf],
+}
+
+
+def _init_dist_stats(stats: dict) -> None:
+    stats.setdefault("zone_before", {})
+    stats.setdefault("zone_after", {})
+    for when in ("before", "after"):
+        stats.setdefault(f"hist_{when}", {})
+        stats.setdefault(f"sums_{when}", {})
+
+
+def _accumulate_dist(df: pd.DataFrame, stats: dict, when: str) -> None:
+    """Add one (already harmonised) batch to the before/after distribution stats."""
+    _init_dist_stats(stats)
+    zones = stats[f"zone_{when}"]
+    for (service, zone), n in df.groupby(["service", df["pu_location_id"].fillna(-1)]).size().items():
+        key = f"{service}|{int(zone)}"
+        zones[key] = zones.get(key, 0) + int(n)
+    hists, sums = stats[f"hist_{when}"], stats[f"sums_{when}"]
+    for col in DIST_COLUMNS:
+        edges = np.asarray(DIST_BINS[col], dtype="float64")
+        hcol = hists.setdefault(col, {})
+        scol = sums.setdefault(col, {})
+        for service, values in df.groupby("service")[col]:
+            clean = pd.to_numeric(values, errors="coerce").dropna().to_numpy(dtype="float64")
+            counts = np.histogram(clean, bins=edges)[0]
+            hcol[service] = (np.asarray(hcol.get(service, np.zeros(len(edges) - 1)), dtype="int64")
+                             + counts).tolist()
+            prev = scol.get(service, [0, 0.0])
+            scol[service] = [int(prev[0]) + int(clean.size), float(prev[1]) + float(clean.sum())]
+
+
+def hist_quantile(counts, edges, q: float) -> float:
+    """Quantile approximated from histogram counts (linear inside the bin)."""
+    counts = np.asarray(counts, dtype="float64")
+    edges = np.asarray(edges, dtype="float64")
+    total = counts.sum()
+    if total == 0:
+        return float("nan")
+    target = q * total
+    cum = np.cumsum(counts)
+    idx = int(np.searchsorted(cum, target, side="left"))
+    if idx >= len(counts):
+        idx = len(counts) - 1
+    lo, hi = edges[idx], edges[idx + 1]
+    if not np.isfinite(lo) or not np.isfinite(hi):   # open outer bin: report its finite edge
+        return float(hi if np.isfinite(hi) else lo)
+    before = cum[idx] - counts[idx]
+    frac = 0.0 if counts[idx] == 0 else (target - before) / counts[idx]
+    return float(lo + frac * (hi - lo))
+
 
 # =====================================================================
 # 1. Paths
@@ -144,7 +209,8 @@ def clean_batch(df: pd.DataFrame, year: int, month: int, stats: dict) -> pd.Data
         "invalid_fare": ~df["fare"].between(config.MIN_FARE, config.MAX_FARE),
         "implausible_speed": speed > config.MAX_SPEED_MPH,
     }
-    # informational counts on the raw batch (before cleaning)
+    # distribution of the raw batch (before cleaning) + informational counts
+    _accumulate_dist(df, stats, "before")
     stats["rows_in"] += len(df)
     stats["negative_fare"] += int((df["fare"] < 0).sum())
     stats["zero_distance"] += int((df["trip_miles"] <= 0).sum())
@@ -156,6 +222,7 @@ def clean_batch(df: pd.DataFrame, year: int, month: int, stats: dict) -> pd.Data
         stats[rule] += int(hit.sum())
         keep &= ~hit
     df = df[keep].copy()
+    _accumulate_dist(df, stats, "after")   # same distribution, after cleaning
 
     ts = df["pickup_datetime"].dt
     df["year"], df["month"], df["day"] = ts.year, ts.month, ts.day
@@ -186,6 +253,7 @@ def clean_month(source: str, year: int, month: int, overwrite: bool = False,
     missing = [c for c in wanted if c not in name_map]
     stats = {"source": source, "year": year, "month": month, "missing_columns": missing,
              **{k: 0 for k in ["rows_in", "rows_out", "negative_fare", "zero_distance", "unknown_zone", *RULES]}}
+    _init_dist_stats(stats)
 
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(".tmp")
@@ -209,6 +277,39 @@ def clean_many_with_dask(keys: list[tuple[str, int, int]], overwrite: bool = Fal
 # =====================================================================
 # 4. Data quality checks (per source and month)
 # =====================================================================
+def _dist_shift_metrics(s: dict) -> tuple[float, float]:
+    """Largest zone-mix shift and largest median shift (before vs. after cleaning).
+
+    Zone shift is the total variation distance between the pickup-zone shares of
+    each service (0 = identical geography). Median shift is relative, per
+    DIST_COLUMNS and service, from the stored histograms."""
+    def shares(counts: dict) -> dict[str, dict[str, float]]:
+        per_service: dict[str, dict[str, float]] = {}
+        for key, n in counts.items():
+            service, zone = key.rsplit("|", 1)
+            per_service.setdefault(service, {})[zone] = float(n)
+        return {svc: {z: n / max(sum(d.values()), 1) for z, n in d.items()}
+                for svc, d in per_service.items()}
+
+    before, after = shares(s.get("zone_before", {})), shares(s.get("zone_after", {}))
+    tvd = 0.0
+    for service in set(before) | set(after):
+        zones = set(before.get(service, {})) | set(after.get(service, {}))
+        tvd = max(tvd, 0.5 * sum(abs(before.get(service, {}).get(z, 0.0)
+                                     - after.get(service, {}).get(z, 0.0)) for z in zones))
+
+    median_shift = 0.0
+    for col in DIST_COLUMNS:
+        edges = DIST_BINS[col]
+        services = set(s.get("hist_before", {}).get(col, {})) | set(s.get("hist_after", {}).get(col, {}))
+        for service in services:
+            med_b = hist_quantile(s["hist_before"][col].get(service, []), edges, 0.5)
+            med_a = hist_quantile(s["hist_after"][col].get(service, []), edges, 0.5)
+            if np.isfinite(med_b) and med_b != 0 and np.isfinite(med_a):
+                median_shift = max(median_shift, abs(med_a - med_b) / abs(med_b))
+    return float(tvd), float(median_shift)
+
+
 def quality_checks(source: str, year: int, month: int) -> list[dict]:
     """Rule-based checks on the cleaning statistics. Each rule returns value, threshold and pass/fail."""
     s = json.loads(stats_path(source, year, month).read_text())
@@ -219,7 +320,7 @@ def quality_checks(source: str, year: int, month: int) -> list[dict]:
                 "value": float(value), "threshold": float(threshold), "passed": bool(passed)}
 
     removed = 1 - s["rows_out"] / n
-    return [
+    checks = [
         rule("row_count_min", s["rows_in"], 100_000, s["rows_in"] >= 100_000),
         rule("missing_expected_columns", len(s["missing_columns"]), 0, len(s["missing_columns"]) == 0),
         rule("share_missing_key", s["missing_key"] / n, 0.01, s["missing_key"] / n <= 0.01),
@@ -229,6 +330,14 @@ def quality_checks(source: str, year: int, month: int) -> list[dict]:
         rule("share_unknown_zone", s["unknown_zone"] / n, 0.05, s["unknown_zone"] / n <= 0.05),
         rule("share_removed_total", removed, 0.10, removed <= 0.10),
     ]
+    if "zone_before" in s:   # distribution stats exist (files cleaned with this version)
+        tvd, median_shift = _dist_shift_metrics(s)
+        checks += [
+            rule("dist_zone_tvd_max", tvd, config.MAX_ZONE_TVD, tvd <= config.MAX_ZONE_TVD),
+            rule("dist_median_shift_max", median_shift, config.MAX_MEDIAN_SHIFT,
+                 median_shift <= config.MAX_MEDIAN_SHIFT),
+        ]
+    return checks
 
 
 def cleaning_summary(keys: list[tuple[str, int, int]] | None = None) -> pd.DataFrame:
@@ -239,6 +348,57 @@ def cleaning_summary(keys: list[tuple[str, int, int]] | None = None) -> pd.DataF
     if keys is not None and len(df):
         df = df[[(s, y, m) in set(keys) for s, y, m in zip(df.source, df.year, df.month)]]
     return df
+
+
+def distribution_summary(keys: list[tuple[str, int, int]] | None = None) -> dict[str, pd.DataFrame]:
+    """Before/after-cleaning distributions aggregated over all cleaned source-months.
+
+    Returns two tables:
+      zone  one row per (source, service, pickup zone): n_before, n_after
+      hist  one row per (source, service, column, bin): n_before, n_after,
+            with bin_left / bin_right taken from DIST_BINS (outer bins are open)
+      sums  one row per (source, service, column): count and sum before/after
+            (exact means = sum / count)
+    Files cleaned before this check existed have no distribution stats and are skipped.
+    """
+    files = sorted(config.CLEAN_DIR.glob("*/*/*_quality.json"))
+    zone: dict[tuple, list] = {}
+    hist: dict[tuple, list] = {}
+    sums: dict[tuple, list] = {}
+    for f in files:
+        s = json.loads(f.read_text())
+        if keys is not None and (s["source"], s["year"], s["month"]) not in set(keys):
+            continue
+        if "zone_before" not in s:
+            continue
+        for when, idx in (("before", 0), ("after", 1)):
+            for key, n in s[f"zone_{when}"].items():
+                service, zid = key.rsplit("|", 1)
+                row = zone.setdefault((s["source"], service, int(zid)), [0, 0])
+                row[idx] += int(n)
+            for col in DIST_COLUMNS:
+                edges = DIST_BINS[col]
+                for service, counts in s.get(f"hist_{when}", {}).get(col, {}).items():
+                    for b, n in enumerate(counts):
+                        row = hist.setdefault((s["source"], service, col, b), [0, 0])
+                        row[idx] += int(n)
+                for service, (cnt, total) in s.get(f"sums_{when}", {}).get(col, {}).items():
+                    row = sums.setdefault((s["source"], service, col), [0, 0.0, 0, 0.0])
+                    row[2 * idx] += int(cnt)
+                    row[2 * idx + 1] += float(total)
+    zone_df = pd.DataFrame(
+        [(src, svc, zid, v[0], v[1]) for (src, svc, zid), v in sorted(zone.items())],
+        columns=["source", "service", "pu_location_id", "n_before", "n_after"])
+    hist_rows = []
+    for (src, svc, col, b), v in sorted(hist.items()):
+        edges = DIST_BINS[col]
+        hist_rows.append((src, svc, col, float(edges[b]), float(edges[b + 1]), v[0], v[1]))
+    hist_df = pd.DataFrame(hist_rows, columns=["source", "service", "column",
+                                               "bin_left", "bin_right", "n_before", "n_after"])
+    sums_df = pd.DataFrame(
+        [(src, svc, col, v[0], v[1], v[2], v[3]) for (src, svc, col), v in sorted(sums.items())],
+        columns=["source", "service", "column", "count_before", "sum_before", "count_after", "sum_after"])
+    return {"zone": zone_df, "hist": hist_df, "sums": sums_df}
 
 
 # =====================================================================

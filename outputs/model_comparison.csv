@@ -1,0 +1,5 @@
+model,ROC-AUC,PR-AUC,precision,recall,F1,balanced_accuracy,fit_time_s
+HistGradientBoosting,0.8648,0.5022,0.3847,0.8548,0.5306,0.8044,12.9478
+Random forest,0.837,0.422,0.4615,0.3079,0.3694,0.6216,26.2494
+Logistic regression,0.8387,0.3868,0.3858,0.8465,0.53,0.802,4.9791
+Dummy (stratified),0.5004,0.1526,0.1532,0.1536,0.1534,0.5004,0.0657

@@ -1,0 +1,21 @@
+source,service,borough,n_before,n_after,share_before_%,share_after_%,delta_pp,removed_%,within_0.5pp
+fhvhv,Lyft,Bronx,4409765,4396472,11.386,11.396,0.01,0.301,True
+fhvhv,Lyft,Brooklyn,10866079,10825897,28.055,28.061,0.005,0.37,True
+fhvhv,Lyft,Manhattan,14755619,14690383,38.098,38.077,-0.02,0.442,True
+fhvhv,Lyft,Queens,8172272,8141628,21.1,21.103,0.003,0.375,True
+fhvhv,Lyft,Staten Island,525552,524170,1.357,1.359,0.002,0.263,True
+fhvhv,Lyft,Unknown,1852,1848,0.005,0.005,0.0,0.216,True
+fhvhv,Uber,Bronx,14140009,14127176,13.468,13.469,0.001,0.091,True
+fhvhv,Uber,Brooklyn,27997278,27966729,26.666,26.663,-0.002,0.109,True
+fhvhv,Uber,EWR,8,8,0.0,0.0,0.0,0.0,True
+fhvhv,Uber,Manhattan,38362323,38326912,36.538,36.541,0.003,0.092,True
+fhvhv,Uber,Queens,22763124,22738898,21.681,21.679,-0.001,0.106,True
+fhvhv,Uber,Staten Island,1726435,1724611,1.644,1.644,-0.0,0.106,True
+fhvhv,Uber,Unknown,4315,4297,0.004,0.004,-0.0,0.417,True
+yellow,Yellow Taxi,Bronx,414789,372944,0.791,0.785,-0.006,10.088,True
+yellow,Yellow Taxi,Brooklyn,1922972,1612193,3.666,3.393,-0.273,16.161,True
+yellow,Yellow Taxi,EWR,6542,425,0.012,0.001,-0.012,93.504,True
+yellow,Yellow Taxi,Manhattan,45000814,41007167,85.802,86.306,0.505,8.875,False
+yellow,Yellow Taxi,Queens,4988184,4432401,9.511,9.329,-0.182,11.142,True
+yellow,Yellow Taxi,Staten Island,5217,4065,0.01,0.009,-0.001,22.082,True
+yellow,Yellow Taxi,Unknown,108973,84251,0.208,0.177,-0.03,22.686,True

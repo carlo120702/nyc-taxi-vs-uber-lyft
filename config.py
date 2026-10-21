@@ -65,6 +65,13 @@ MIN_FARE = 0.01
 MAX_FARE = 500
 MAX_SPEED_MPH = 80
 
+# Distribution check (before vs. after cleaning): thresholds for the quality rules
+# dist_zone_tvd_max and dist_median_shift_max in pipeline.quality_checks.
+# The cleaning must not change WHERE a service operates (zone mix) nor the centre
+# of its fare / distance / duration distributions; only the invalid tails may move.
+MAX_ZONE_TVD = 0.02          # total variation distance of the pickup-zone shares (0..1)
+MAX_MEDIAN_SHIFT = 0.05      # max. relative shift of the (histogram) median, 5 %
+
 # ---------------------------------------------------------------- Dask
 # Machine used: Intel i7-1185G7 (4 cores / 8 logical), 32 GB RAM, ~16 GB free.
 # Both configurations use 8 threads and 12 GB in total, so they are comparable.

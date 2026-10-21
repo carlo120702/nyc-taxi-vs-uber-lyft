@@ -22,9 +22,9 @@ Analysis of the NYC Taxi & Limousine Commission (TLC) trip records for 2025, com
 |---|---|
 | 1. Business understanding | `notebooks/01_eda.ipynb` (introduction): business question, unit of analysis, target `is_taxi` |
 | 2. Data understanding | `notebooks/01_eda.ipynb` (sections 1 to 9): volume, schemas, data quality, distributions |
-| 3. Data preparation | `src/pipeline.py` (`harmonise`, `clean_batch`), `src/context.py` (zones, weather) |
-| 4. Modeling | `notebooks/01_eda.ipynb` (section 12): baseline HistGradientBoosting, ROC-AUC 0.867 |
-| 5. Evaluation | ROC-AUC and PR-AUC instead of accuracy because Yellow Taxi is only 15.3 % of trips |
+| 3. Data preparation | `src/pipeline.py` (`harmonise`, `clean_batch`), `src/context.py` (zones, weather). Distribution before vs. after cleaning (per service and pickup borough) is checked in section 3 of the notebook and by two quality rules (`dist_zone_tvd_max`, `dist_median_shift_max`) |
+| 4. Modeling | `notebooks/01_eda.ipynb` (section 12): four models compared on the same sample and split (Dummy, logistic regression, random forest, HistGradientBoosting), table in `outputs/model_comparison.csv` |
+| 5. Evaluation | ROC-AUC and PR-AUC instead of accuracy because Yellow Taxi is only 15.3 % of trips, plus a learning curve (ROC-AUC and PR-AUC vs. training size, 3-fold CV) of the winning model in `outputs/learning_curve.png` — not a single score |
 | 6. Deployment | `flows/etl_flow.py` (Prefect), `src/db.py` (AWS RDS), `grafana/` (dashboard) |
 
 ## Tools used
@@ -38,7 +38,7 @@ Analysis of the NYC Taxi & Limousine Commission (TLC) trip records for 2025, com
 | AWS RDS (PostgreSQL) | Stores only the aggregated KPI tables, quality checks and run log |
 | SQLAlchemy ORM | Python classes for the tables, idempotent load |
 | Grafana (Docker) | Management dashboard on top of the RDS tables |
-| scikit-learn | Baseline model that predicts `is_taxi` |
+| scikit-learn | Model comparison (4 classifiers) and learning curve to predict `is_taxi` |
 
 ## Data
 
@@ -60,7 +60,7 @@ TLC website ──download_tlc.py──> data/raw/*.parquet  (≈ 6 GB, local on
                                         │
   ┌────────────┬──────────────┬─────────┴──────────┬───────────────┬────────────────┐
   discover     context        clean (Dask)         validate        analyze (Dask)   load (ORM)
-  new files    zones +        harmonise yellow +   8 quality       4 KPI tables     AWS RDS PostgreSQL
+  new files    zones +        harmonise yellow +   10 quality      4 KPI tables     AWS RDS PostgreSQL
                weather        fhvhv schemas,       rules per                              │
                               remove outliers      file                               Grafana
 ```
@@ -154,6 +154,7 @@ Run the flow a second time: it reports *no new files*. Then add a new month (for
 ## Things to explain in the report
 
 * **Cleaning.** Negative fares (refunds), zero distance, durations under 1 minute or over 3 hours and speeds above 80 mph are removed. The share per rule is stored in `quality_check` and shown in the notebook.
+* **Distribution check.** For every source-month the pipeline also stores the pickup-zone counts and the fare / distance / duration histograms **before and after** cleaning (`*_quality.json`), so the notebook (section 3) can verify that the cleaning did not change the geography of each service (share of trips per pickup borough, taxi share per borough) nor the centre of the numeric distributions — only the invalid tails. Two quality rules enforce this per file: the zone shares may shift by a total variation distance of at most 0.02 and any median by at most 5 % (thresholds in `config.py`). Files cleaned before this check existed must be reprocessed once (`python flows/etl_flow.py --full`).
 * **Tips.** Yellow Taxi cash tips are not recorded, so tips are only compared on card payments. Uber and Lyft are always paid in the app.
 * **Fares.** Comparisons use the base fare before tips, taxes and surcharges, because the surcharges differ by law between taxis and app services.
 * **Congestion pricing.** Since 5 January 2025 trips into the Manhattan congestion relief zone pay a toll (`cbd_congestion_fee`).

@@ -126,6 +126,124 @@ md("""
 Missing values are **structural**. `driver_pay` and `wait_min` do not exist for yellow taxis (the meter does not record a request time or the driver's share). They must not be imputed and are only compared between Uber and Lyft.
 """)
 
+md("""
+### Distribution check: does cleaning change the data? (before vs. after)
+
+Cleaning removes about 10 % of Yellow Taxi rows but only about 0.2 % of app rows, so we must verify that it does
+not change **what the data represents**. The pipeline stores, for every source-month, the pickup-zone counts and
+histograms of `fare`, `trip_miles` and `duration_min` **before and after** cleaning (`pipeline._accumulate_dist`,
+saved in the `*_quality.json` files), so this comparison covers all trips, not a sample.
+
+Criteria fixed before looking at the results:
+
+1. **Geography within each service** (main test): the share of a service's trips per pickup borough may move by
+   at most **0.5 percentage points**, and the zone-level total variation distance must stay below
+   `config.MAX_ZONE_TVD` (= 0.02, also a data quality rule in RDS).
+2. **Centre of the numeric distributions**: median shift at most `config.MAX_MEDIAN_SHIFT` (= 5 %). The far right
+   tail (p99, max) is *expected* to shrink: removing it is the purpose of the cleaning rules.
+3. **Taxi share inside a borough** (e.g. 5 % of trips in a borough were taxi before cleaning): reported, but not
+   required to stay equal. Raw taxi data contains refunds and voids that app data does not, so the cleaned taxi
+   share (15.3 % city-wide) is naturally lower than the raw share (about 16.7 %). What must not happen is a
+   borough-specific collapse, which would mean a rule deletes trips of one area disproportionately.
+
+If the files were cleaned before this check existed, `distribution_summary()` is empty: re-run the cleaning
+(`python flows/etl_flow.py --full`) once to regenerate the `*_quality.json` files with distribution stats.
+""")
+code("""
+dist = pipeline.distribution_summary()
+assert not dist["zone"].empty, "No distribution stats found. Re-run: python flows/etl_flow.py --full"
+
+zlookup = context.zone_lookup()
+zone_b = dist["zone"].merge(zlookup[["location_id", "borough"]],
+                             left_on="pu_location_id", right_on="location_id", how="left")
+zone_b["borough"] = zone_b["borough"].fillna("Unknown")
+zone_b.loc[zone_b.pu_location_id == -1, "borough"] = "Missing zone"
+
+# Level 1: geography within each service (share of the service's own trips per borough)
+bs = zone_b.groupby(["source", "service", "borough"])[["n_before", "n_after"]].sum().reset_index()
+tot = bs.groupby("service")[["n_before", "n_after"]].transform("sum")
+bs["share_before_%"] = bs.n_before / tot.n_before * 100
+bs["share_after_%"] = bs.n_after / tot.n_after * 100
+bs["delta_pp"] = bs["share_after_%"] - bs["share_before_%"]
+bs["removed_%"] = (1 - bs.n_after / bs.n_before) * 100
+bs["within_0.5pp"] = bs["delta_pp"].abs() <= 0.5
+display(bs.sort_values(["service", "share_before_%"], ascending=[True, False])
+          [["source", "service", "borough", "n_before", "n_after", "removed_%",
+            "share_before_%", "share_after_%", "delta_pp", "within_0.5pp"]].round(2))
+
+# Level 1b: same but per raw source, i.e. Yellow Taxi vs. all for-hire (contract) trips
+src_b = zone_b.groupby(["source", "borough"])[["n_before", "n_after"]].sum().reset_index()
+tot = src_b.groupby("source")[["n_before", "n_after"]].transform("sum")
+src_b["share_before_%"] = src_b.n_before / tot.n_before * 100
+src_b["share_after_%"] = src_b.n_after / tot.n_after * 100
+src_b["delta_pp"] = src_b["share_after_%"] - src_b["share_before_%"]
+display(src_b.round(2).rename(columns={"source": "source (yellow = taxi, fhvhv = contract)"}))
+""")
+code("""
+fig, axes = plt.subplots(1, 2, figsize=(15, 4.5), sharey=True)
+for ax, (src, label) in zip(axes, [("yellow", "Yellow Taxi"), ("fhvhv", "For-hire / contract (Uber, Lyft, ...)")]):
+    d = src_b[src_b.source == src].set_index("borough").sort_values("share_before_%", ascending=False)
+    d[["share_before_%", "share_after_%"]].plot(kind="bar", ax=ax, color=["#BBBBBB", "#4C72B0"], rot=30)
+    ax.set(title=f"Share of {label} trips per pickup borough", xlabel="", ylabel="Share of trips (%)")
+axes[0].legend(["before cleaning", "after cleaning"]); plt.tight_layout(); plt.show()
+
+# Level 3: taxi share INSIDE each borough before vs. after (e.g. 5 % of a borough's trips were taxi)
+bt = zone_b.assign(is_taxi=(zone_b.service == "Yellow Taxi").astype(int))
+bt = bt.groupby(["borough", "is_taxi"])[["n_before", "n_after"]].sum().unstack(fill_value=0)
+taxi_share = pd.DataFrame({
+    "taxi_share_before_%": bt[("n_before", 1)] / bt["n_before"].sum(axis=1) * 100,
+    "taxi_share_after_%": bt[("n_after", 1)] / bt["n_after"].sum(axis=1) * 100,
+})
+taxi_share["delta_pp"] = taxi_share["taxi_share_after_%"] - taxi_share["taxi_share_before_%"]
+taxi_share.sort_values("taxi_share_before_%", ascending=False).round(2)
+""")
+code("""
+# Level 2: numeric distributions per source (taxi vs. contract), before vs. after
+hist_src = (dist["hist"].groupby(["source", "column", "bin_left", "bin_right"])[["n_before", "n_after"]]
+            .sum().reset_index())
+rows = []
+for (src, col), d in hist_src.groupby(["source", "column"]):
+    d = d.sort_values("bin_left")
+    edges = pipeline.DIST_BINS[col]
+    row = {"source": src, "column": col}
+    for when in ("before", "after"):
+        counts = d[f"n_{when}"].to_numpy()
+        for q, name in [(0.25, "p25"), (0.5, "median"), (0.75, "p75"), (0.95, "p95")]:
+            row[f"{name}_{when}"] = pipeline.hist_quantile(counts, edges, q)
+    row["median_shift_%"] = (row["median_after"] / row["median_before"] - 1) * 100
+    rows.append(row)
+num_check = pd.DataFrame(rows)
+sums_src = dist["sums"].groupby(["source", "column"])[["count_before", "sum_before",
+                                                       "count_after", "sum_after"]].sum().reset_index()
+num_check = num_check.merge(sums_src, on=["source", "column"])
+num_check["mean_before"], num_check["mean_after"] = (num_check.sum_before / num_check.count_before,
+                                                     num_check.sum_after / num_check.count_after)
+display(num_check[["source", "column", "mean_before", "mean_after", "median_before", "median_after",
+                   "median_shift_%", "p95_before", "p95_after"]].round(3))
+
+fig, axes = plt.subplots(2, 3, figsize=(15, 8), sharex="col")
+for r, (src, label) in enumerate([("yellow", "Yellow Taxi"), ("fhvhv", "For-hire / contract")]):
+    for c, col in enumerate(pipeline.DIST_COLUMNS):
+        d = hist_src[(hist_src.source == src) & (hist_src.column == col)].sort_values("bin_left")
+        d = d[np.isfinite(d.bin_left) & np.isfinite(d.bin_right)]   # open outer bins not plotted
+        ax = axes[r, c]
+        ax.plot(d.bin_left, d.n_before / d.n_before.sum(), color="#BBBBBB", label="before")
+        ax.plot(d.bin_left, d.n_after / d.n_after.sum(), color="#4C72B0", label="after")
+        ax.set(title=f"{label}: {col}", xlabel=col, ylabel="Share of trips")
+axes[0, 0].legend(); plt.tight_layout(); plt.show()
+
+bs.round(3).to_csv(config.OUTPUT_DIR / "distribution_before_after_borough.csv", index=False)
+num_check.round(4).to_csv(config.OUTPUT_DIR / "distribution_before_after_numeric.csv", index=False)
+print("saved outputs/distribution_before_after_borough.csv and _numeric.csv")
+""")
+md("""
+**How to read this.** If `within_0.5pp` is true for every borough and the median shifts stay below 5 %, the
+cleaning only removed invalid records (negative fares, zero distances, impossible speeds) without changing where
+each service operates or what a typical trip looks like. A single borough failing the test would point to one
+cleaning rule deleting that area disproportionately (for example airport zones) and would have to be investigated
+before trusting any zone-level conclusion.
+""")
+
 md("## 4. Central tendency and dispersion by service")
 code("""
 num = ["fare", "trip_miles", "duration_min", "tip", "total_paid"]
@@ -274,11 +392,37 @@ else:
     print("Weather API not reachable. Continue without weather.")
 """)
 
-md("## 12. Baseline model (feasibility check for the next CRISP-DM phase)")
+md("""
+## 12. Model comparison and learning curve (CRISP-DM phases 4 and 5)
+
+A single model with a single score proves only that prediction is *possible*. Here four models of increasing
+complexity are trained on the **same sample, same features and same train/test split**, so their scores are
+comparable:
+
+| Model | Role |
+|---|---|
+| Dummy (stratified) | Random baseline: any real model must beat it clearly |
+| Logistic regression | Linear baseline (borough / service-zone codes one-hot encoded, numeric features scaled) |
+| Random forest | Non-linear ensemble, robust but slow |
+| HistGradientBoosting | Gradient boosting, the strongest baseline of the previous version of this notebook |
+
+Because only 15.3 % of trips are taxis, the models are ranked by **PR-AUC first** and ROC-AUC second (accuracy
+would reward always predicting "app"). The winner then gets a **learning curve**: performance against training-set
+size, with cross-validation, instead of one final number.
+""")
 code("""
-from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.metrics import average_precision_score, roc_auc_score
+import time
+
+from sklearn.compose import ColumnTransformer
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (average_precision_score, balanced_accuracy_score, f1_score,
+                             precision_score, recall_score, roc_auc_score)
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 frac = min(1.0, 500_000 / n_rows)
 cols = ["is_taxi", "hour", "day_of_week", "month", "day", "pu_location_id", "do_location_id", "trip_miles", "is_airport"]
@@ -294,16 +438,92 @@ if weather is not None:
 features = [c for c in ["hour", "day_of_week", "month", "pu_borough", "do_borough", "pu_service_zone",
                         "trip_miles", "is_airport", "precip_mm", "temp_mean_c"] if c in s]
 X_tr, X_te, y_tr, y_te = train_test_split(s[features], s["is_taxi"], test_size=0.3, stratify=s["is_taxi"], random_state=1)
-model = HistGradientBoostingClassifier(max_iter=200, class_weight="balanced", random_state=1).fit(X_tr, y_tr)
-p = model.predict_proba(X_te)[:, 1]
-print(f"Sample: {len(s):,} trips | features: {features}")
-print(f"ROC-AUC: {roc_auc_score(y_te, p):.3f} | PR-AUC: {average_precision_score(y_te, p):.3f} "
-      f"(random baseline PR-AUC = {y_te.mean():.3f})")
+print(f"Sample: {len(s):,} trips | train {len(X_tr):,} / test {len(X_te):,} | features: {features}")
+print(f"Positive class in test: {y_te.mean():.1%} (a random model has PR-AUC = {y_te.mean():.3f})")
+""")
+code("""
+cat_features = [c for c in ["pu_borough", "do_borough", "pu_service_zone"] if c in features]
+num_features = [c for c in features if c not in cat_features]
+pre_logreg = ColumnTransformer([
+    ("cat", Pipeline([("imputer", SimpleImputer(strategy="most_frequent")),
+                      ("onehot", OneHotEncoder(handle_unknown="ignore"))]), cat_features),
+    ("num", Pipeline([("imputer", SimpleImputer(strategy="median")),
+                      ("scaler", StandardScaler())]), num_features),
+])
+estimators = {
+    "Dummy (stratified)": DummyClassifier(strategy="stratified", random_state=1),
+    "Logistic regression": Pipeline([("prep", pre_logreg),
+        ("clf", LogisticRegression(max_iter=1000, class_weight="balanced", random_state=1))]),
+    "Random forest": Pipeline([("imputer", SimpleImputer(strategy="median")),
+        ("clf", RandomForestClassifier(n_estimators=200, class_weight="balanced_subsample",
+                                        n_jobs=-1, random_state=1))]),
+    "HistGradientBoosting": HistGradientBoostingClassifier(max_iter=200, class_weight="balanced", random_state=1),
+}
+
+rows, fitted = [], {}
+for name, est in estimators.items():
+    t0 = time.perf_counter()
+    fitted[name] = est.fit(X_tr, y_tr)
+    fit_s = time.perf_counter() - t0
+    p = fitted[name].predict_proba(X_te)[:, 1]
+    y_hat = (p >= 0.5).astype(int)
+    rows.append({"model": name, "ROC-AUC": roc_auc_score(y_te, p), "PR-AUC": average_precision_score(y_te, p),
+                 "precision": precision_score(y_te, y_hat, zero_division=0),
+                 "recall": recall_score(y_te, y_hat, zero_division=0),
+                 "F1": f1_score(y_te, y_hat, zero_division=0),
+                 "balanced_accuracy": balanced_accuracy_score(y_te, y_hat), "fit_time_s": fit_s})
+    print(f"{name:22s} fitted in {fit_s:6.1f}s")
+
+comparison = (pd.DataFrame(rows).sort_values(["PR-AUC", "ROC-AUC"], ascending=False)
+              .reset_index(drop=True))
+display(comparison.round(3))
+comparison.round(4).to_csv(config.OUTPUT_DIR / "model_comparison.csv", index=False)
+
+best_name = comparison.loc[0, "model"]
+model = fitted[best_name]          # winner, used by the learning curve and the importance plot below
+print(f"Best model by PR-AUC: {best_name} "
+      f"(ROC-AUC {comparison.loc[0, 'ROC-AUC']:.3f}, PR-AUC {comparison.loc[0, 'PR-AUC']:.3f})")
+
+ax = comparison.set_index("model")[["ROC-AUC", "PR-AUC"]].sort_values("PR-AUC").plot(kind="barh")
+ax.set(title="Model comparison on the held-out test set", xlabel="Score", xlim=(0, 1))
+plt.tight_layout(); plt.show()
+""")
+md("""
+### Learning curve of the winning model
+
+The curve is computed **only on the training set** with 3-fold stratified cross-validation (the test set above
+stays untouched), at 5 training sizes from 10 % to 100 %, for both ROC-AUC and PR-AUC. It answers the question a
+single score cannot: *would more data help?*
+
+* Validation curve still rising at 100 % → train the final model on more than the 500 k sample.
+* Training curve far above validation → overfitting: the model memorises zones instead of learning patterns.
+* Both curves close and flat → the features are saturated; better features, not more rows, are needed.
+
+Note this takes several minutes: the winner is refitted 15 times per metric.
+""")
+code("""
+from sklearn.base import clone
+from sklearn.model_selection import StratifiedKFold, learning_curve
+
+cv = StratifiedKFold(3, shuffle=True, random_state=1)
+train_sizes = np.linspace(0.1, 1.0, 5)
+fig, axes = plt.subplots(1, 2, figsize=(14, 4.5), sharey=True)
+for ax, (label, scoring) in zip(axes, [("ROC-AUC", "roc_auc"), ("PR-AUC", "average_precision")]):
+    sizes, tr, te = learning_curve(clone(estimators[best_name]), X_tr, y_tr, train_sizes=train_sizes,
+                                   cv=cv, scoring=scoring, n_jobs=-1, random_state=1, shuffle=True)
+    for scores, name, color in [(tr, "train", "#BBBBBB"), (te, "cross-validation", "#4C72B0")]:
+        mean, std = scores.mean(axis=1), scores.std(axis=1)
+        ax.plot(sizes, mean, "o-", color=color, label=name)
+        ax.fill_between(sizes, mean - std, mean + std, color=color, alpha=0.15)
+    ax.set(title=f"{best_name}: {label}", xlabel="Training trips", ylabel=label)
+axes[0].legend(); plt.tight_layout()
+plt.savefig(config.OUTPUT_DIR / "learning_curve.png", dpi=150, bbox_inches="tight"); plt.show()
+print("saved outputs/learning_curve.png")
 """)
 code("""
 from sklearn.inspection import permutation_importance
 imp = permutation_importance(model, X_te.iloc[:20_000], y_te.iloc[:20_000], scoring="roc_auc", n_repeats=3, random_state=1)
-pd.Series(imp.importances_mean, index=features).sort_values().plot(kind="barh", title="Permutation importance (ROC-AUC drop)")
+pd.Series(imp.importances_mean, index=features).sort_values().plot(kind="barh", title=f"Permutation importance, {best_name} (ROC-AUC drop)")
 plt.tight_layout(); plt.show()
 """)
 
@@ -317,7 +537,7 @@ Write the final numbers from the cells above into the report. The structure of t
 3. **When taxis compete.** Hour and weekday profile (section 7).
 4. **Price.** Fare per mile and by distance band (section 8).
 5. **Tips.** Card tip rate taxi vs. app, with the cash tip limitation (section 9).
-6. **Predictability.** The baseline model shows whether location and time are enough to tell taxi from app trips (section 12).
+6. **Predictability.** The model comparison (Dummy, logistic regression, random forest, HistGradientBoosting on the same split) shows whether location and time are enough to tell taxi from app trips, and its learning curve shows whether a bigger training sample would still help (section 12).
 
 **Additional context information needed.**
 * **Taxi zone lookup** (TLC) is required, without it zone IDs cannot be interpreted. Already integrated.
